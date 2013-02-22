@@ -1,5 +1,9 @@
 Set of tools to emulate the German Enigma Machine
 
 new_rotor:
-  usage: new_rotor FILE
-  Generates a new random rotor in FILE
+  usage: new_rotor [OPTIONS] [FILE ...]
+  Generates a new random rotor in FILE(s), or the standard ouput if not provided
+ 
+   Options:
+    -n, --notch NUM   Create a rotor with NUM notches, with a maximum of 3
+    -h, --help        Display this help and exit

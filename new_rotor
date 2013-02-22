@@ -1,0 +1,151 @@
+#!/bin/bash
+
+# usage: new_rotor [OPTIONS] [FILE ...]
+# Generates a new random rotor in FILE(s), or the standard ouput if not provided
+#
+#  Options:
+#   -n, --notch NUM   Create a rotor with NUM notches, with a maximum of 3
+#   -h, --help        Display this help and exit
+
+
+
+input=({a..z})  # array of input letters
+output=()       # array of output letters
+notches=1       # number of notches to generate
+
+# usage: is_conflicting NOTCH EXISTING
+# determines if NOTCH conflicts with any other notches in EXISTING. returns 0
+# if it IS conflicting, otherwise 1
+is_conflicting() {
+  local new=$1 old
+  shift
+
+  for old; do
+    if ((old == new || (old + 1) % 26 == new || old == (new + 1) % 26)); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# print usage information
+usage() {
+  cat <<'EOF'
+usage: new_rotor [OPTIONS] [FILE]
+Generates a new random rotor in FILE, or the standard ouput if not provided.
+
+ Options:
+  -n, --notch NUM   Create a rotor with NUM notches, with a maximum of 3
+  -h, --help        Display this help and exit
+EOF
+}
+
+# option string
+optstring=n:h
+
+# reformat the options into a more easily parsable format
+unset options
+while (($#)); do
+  case $1 in
+    -[!-]?*)
+      for ((i=1; i<${#1}; i++)); do
+        c=${1:i:1} options+=("-$c")
+
+        if [[ $optstring = *"$c:"* && ${1:i+1} ]]; then
+          options+=("${1:i+1}")
+          break
+        fi
+      done
+      ;;
+    --?*=*) options+=("${1%%=*}" "${1#*=}");;
+    --)
+      options+=(--endopts)
+      shift
+      options+=("$@")
+      break
+      ;;
+    *) options+=("$1");;
+  esac
+
+  shift
+done
+set -- "${options[@]}"
+unset options
+
+# actually parse the options and do stuff
+while [[ $1 = -?* ]]; do
+  case $1 in
+    -n|--notch)
+      if [[ -z $2 || $2 = *[!0-9]* ]] || (($2 < 1 || $2 > 3)); then
+        printf 'invalid NUM: %s\n' "$2" >&2
+        exit 1
+      fi
+
+      notches=$2
+      shift
+      ;;
+    -h|--help) usage >&2; exit 0;;
+    --endopts) shift; break;;
+    *) printf 'invalid option: %s\n' "$1" >&2; exit 1;;
+  esac
+
+  shift
+done
+
+# use the standard output if no file is provided
+if ((! $#)); then
+  set -- /dev/stdout
+fi
+
+# loop over each input file
+for file; do
+  # populate the output array
+  output=("${input[@]}")
+
+  # shuffle the output array using the knuth shuffle
+  size=${#output[@]}
+  max=$((32768 / size * size))
+  for ((i=size-1; i>0; i--)); do
+    while (((rand = RANDOM) >= max)); do :; done
+    rand=$((rand % (i + 1)))
+
+    tmp=${output[i]}
+    output[i]=${output[rand]}
+    output[rand]=$tmp
+  done
+
+  # determine random position of notches
+  notch_pos=()
+  for ((i=0; i<notches; i++)); do
+    while (((rand = RANDOM) >= max)); do :; done
+    notch=$((rand % size))
+
+    # if the notch position is already in use or adjacent, try again
+    if is_conflicting "$notch" "${notch_pos[@]}"; then
+      ((i--))
+      continue
+    fi
+
+    notch_pos+=("$notch")
+  done
+
+  # loop over each position in the rotor
+  for ((i=0; i<26; i++)); do
+    # determine if a notch indicator is needed
+    has_notch=0
+    for n in "${notch_pos[@]}"; do
+      if ((n == i)); then
+        has_notch=1
+        break
+      fi
+    done
+
+    # print the line
+    if ((has_notch)); then
+      printf '%s %s +\n' "${input[i]}" "${output[i]}"
+    else
+      printf '%s %s\n' "${input[i]}" "${output[i]}"
+    fi
+  done > "$file"
+done
