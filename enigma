@@ -21,6 +21,7 @@
 # this repo will randomly generate rotors for you.
 
 
+
 ## usage: getopts(optstring [, longopt_array ])
 ## Parses options, and deletes them from ARGV. "optstring" is of the form
 ## "ab:c". Each letter is a possible option. If the letter is followed by a
@@ -134,6 +135,31 @@ function getopts(optstring, longarr,    opt, trimmed, hasarg, repeat) {
 
   # return the option letter
   return opt;
+}
+
+# print the usage information to the standard output
+function usage() {
+  printf("%s\n\n%s\n\n%s\n%s\n\n",
+"usage: enigma -- [OPTIONS] ROTOR1 ROTOR2 ROTOR3 REFLECTOR [FILE ...]",
+"the '--' is required, so AWK itself doesn't read the options",
+"Reads FILE(s), or the standard input if not provided, and encrypts or",
+"decrypts the contents in the same manor as an Enigma machine. " \
+) > "/dev/stderr";
+  printf("%s\n%s\n%s\n%s\n%s\n\n",
+" Options:",
+"  -i, --initial CHARS   Set the rotors according to the initial setting in",
+"                        CHARS. CHARS is a three-letter string containing the",
+"                        letters that would be visible in the windows",
+"  -h, --help            Display this help and exit" \
+) > "/dev/stderr";
+  printf("%s\n%s\n%s\n%s\n%s\n%s\n",
+"The ROTOR* and REFLECTOR files contain 26 lines of the format:",
+"  IN OUT [NOTCH]",
+"IN and OUT are letters, and NOTCH, if it exists, is a plus sign (+). For",
+"example, the line "a f +" would indicate that "a" is mapped to "f", and that",
+"the next rotor should step when on the "a". The "new_rotor" tool included in",
+"this repo will randomly generate rotors for you." \
+) > "/dev/stderr";
 }
 
 
