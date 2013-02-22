@@ -1,0 +1,5 @@
+Set of tools to emulate the German Enigma Machine
+
+new_rotor:
+  usage: new_rotor FILE
+  Generates a new random rotor in FILE
