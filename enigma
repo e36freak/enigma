@@ -2,6 +2,7 @@
 
 # TODO:
 # allow option to replace specific non-alpha chars with sequences
+# add plugs
 
 # usage: enigma -- [OPTIONS] ROTOR1 ROTOR2 ROTOR3 REFLECTOR [FILE ...]
 #
@@ -302,7 +303,7 @@ BEGIN {
   # get starting positions of rotors
   split(init_setting, s, "");
   for (r=1; r<=3; r++) {
-    pos[r] = s[r];
+    pos[r] = letters[s[r]];
   }
 }
 
@@ -322,7 +323,7 @@ BEGIN {
     to_step[1] = 1; to_step[2] = 0; to_step[3] = 0;
     for (r=1; r<=3; r++) {
       # if there's a notch in the current position
-      if (notches[r,pos[r]]) {
+      if (notches[r,letters[pos[r]]]) {
         # step both the current rotor and the next one
         to_step[r] = 1;
         to_step[r+1] = 1;
@@ -331,21 +332,21 @@ BEGIN {
     # actually step them
     for (r=1; r<=3; r++) {
       if (to_step[r]) {
-        pos[r] = letters[(letters[pos[r]] % l_len) + 1];
+        pos[r] = (pos[r] % l_len) + 1;
       }
     }
 
     # send character through rotors
     out = chars[c];
     for (r=1; r<=3; r++) {
-      out = rotors_f[r,out];
+      out = rotors_f[r,letters[(letters[out] + pos[r] - 2) % l_len + 1]];
     }
     # reflect
     out = reflect[out];
 
     # back through rotors
     for (r=3; r>=1; r--) {
-      out = rotors_r[r,out];
+      out = rotors_r[r,letters[(letters[out] - pos[r] + 26) % l_len + 1]];
     }
     
 
