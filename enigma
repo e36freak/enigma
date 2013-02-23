@@ -1,5 +1,8 @@
 #!/usr/bin/awk -f
 
+# TODO:
+# allow option to replace specific non-alpha chars with sequences
+
 # usage: enigma -- [OPTIONS] ROTOR1 ROTOR2 ROTOR3 REFLECTOR [FILE ...]
 #
 # the '--' is required, so AWK itself doesn't read the options
@@ -13,14 +16,25 @@
 #                         letters that would be visible in the windows
 #   -h, --help            Display this help and exit
 #
-# The ROTOR* and REFLECTOR files contain 26 lines of the format:
+# The ROTOR* files contain 26 lines of the format:
 #   IN OUT [NOTCH]
 # IN and OUT are letters, and NOTCH, if it exists, is a plus sign (+). For
 # example, the line "a f +" would indicate that "a" is mapped to "f", and that
 # the next rotor should step when on the "a". The "new_rotor" tool included in
 # this repo will randomly generate rotors for you.
+#
+# The REFLECTOR file contains 13 lines of letter pairs, such as:
+#   "b x"
+# Where "b" and "x" are switched upon reflection. Each letter may appear only
+# once, and all letters must be present.
 
 
+
+## usage: delete_arr(array)
+## deletes every element in "array"
+function delete_arr(arr) {
+  split("", arr);
+}
 
 ## usage: getopts(optstring [, longopt_array ])
 ## Parses options, and deletes them from ARGV. "optstring" is of the form
@@ -152,14 +166,200 @@ function usage() {
 "                        letters that would be visible in the windows",
 "  -h, --help            Display this help and exit" \
 ) > "/dev/stderr";
-  printf("%s\n%s\n%s\n%s\n%s\n%s\n",
+  printf("%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n",
 "The ROTOR* and REFLECTOR files contain 26 lines of the format:",
 "  IN OUT [NOTCH]",
 "IN and OUT are letters, and NOTCH, if it exists, is a plus sign (+). For",
-"example, the line "a f +" would indicate that "a" is mapped to "f", and that",
-"the next rotor should step when on the "a". The "new_rotor" tool included in",
+"example, the line \"a f +\" would indicate that \"a\" is mapped to \"f\", and that",
+"the next rotor should step when on the \"a\". The \"new_rotor\" tool included in",
 "this repo will randomly generate rotors for you." \
+"The REFLECTOR file contains 13 lines of letter pairs, such as:",
+"  \"b x\"",
+"Where \"b\" and \"x\" are switched upon reflection. Each letter may appear only",
+"once, and all letters must be present." \
 ) > "/dev/stderr";
+}
+
+BEGIN {
+  # initial variables
+  err = toexit = 0;
+  init_setting = "aaa";
+
+  # map long options to short ones
+  longopts["initial"] = "i";
+  longopts["help"]    = "h";
+
+  # actually read in the options
+  while ((opt = getopts("i:h", longopts)) != -1) {
+    # -i, --initial CHARS
+    if (opt == "i") {
+      if (length(optarg) != 3 || optarg ~ /[^[:alpha:]]/) {
+        printf("invalid CHARS for %s: %s\n", optname, optarg) > "/dev/stderr";
+        err = toexit = 1; exit;
+      }
+      init_setting = tolower(optarg);
+
+    # -h, --help
+    } else if (opt == "h") {
+      usage(); toexit = 1; exit;
+
+    # error
+    } else {
+      err = toexit = 1; exit;
+    }
+  }
+
+  # make sure there are at least 4 arguments left
+  if (optind + 3 >= ARGC) {
+    print "3 ROTORs and 1 REFLECTOR must be provided" > "/dev/stderr";
+    err = toexit = 1; exit;
+  }
+
+  # create an array of all letters, for checks and such
+  l = "abcdefghijklmnopqrstuvwxyz";
+  l_len = split(l, letters, "");
+  for (i=1; i<=l_len; i++) {
+    letters[letters[i]] = i;
+  }
+
+  # read in rotors
+  for (r=1; r<=3; r++) {
+    notch_c=0
+    while ((getline < ARGV[optind + r - 1]) > 0) {
+      a = tolower($1);
+      b = tolower($2);
+
+      # validate letters
+      if (a ~ /[^[:alpha:]]/ || b ~ /[^[:alpha:]]/) {
+        printf("invalid rotor: %s\n", ARGV[optind + r - 1]) > "/dev/stderr";
+        err = toexit = 1; exit;
+      }
+
+      rotors_f[r,a] = a;
+      rotors_r[r,b] = b;
+
+      if ($3 == "+") {
+        notches[r,a] = 1;
+        notch_c++;
+      }
+    }
+    close(ARGV[optind + r - 1]);
+
+    # make sure all 26 letters were accounted for, and the notches are correct
+    if (notch_c < 1 || notch_c > 3) {
+      printf("invalid rotor: %s\n", ARGV[optind + r - 1]) > "/dev/stderr";
+      err = toexit = 1; exit;
+    }
+    delete_arr(cur_notches);
+    for (i=1; i<=l_len; i++) {
+      if (!(r SUBSEP letters[i] in rotors_f) ||
+          !(r SUBSEP letters[i] in rotors_r)) {
+        printf("invalid rotor: %s\n", ARGV[optind + r - 1]) > "/dev/stderr";
+        err = toexit = 1; exit;
+      }
+
+      if (r SUBSEP letters[i] in notches) {
+        cur_notches[i];
+      }
+    }
+    for (i in cur_notches) {
+      if (((i+1) % 26 in cur_notches) || ((i-1+26) % 26 in cur_notches)) {
+        printf("invalid rotor: %s\n", ARGV[optind + r - 1]) > "/dev/stderr";
+        err = toexit = 1; exit;
+      }
+    }
+
+    # delete filename from ARGV
+    delete ARGV[optind + r - 1];
+  }
+
+  # read in reflector
+  while ((getline < ARGV[optind + 3]) > 0) {
+    a = tolower($1);
+    b = tolower($2);
+
+    # validate letters
+    if (a ~ /[^[:alpha:]]/ || b ~ /[^[:alpha:]]/) {
+      printf("invalid reflector: %s\n", ARGV[optind + 3]) > "/dev/stderr";
+      err = toexit = 1; exit;
+    }
+
+    reflect[a] = b;
+    reflect[b] = a;
+  }
+
+  # validate reflector
+  for (i=1; i<=l_len; i++) {
+    if (!(letters[i] in reflect)) {
+      printf("invalid reflector: %s\n", ARGV[optind + 3]) > "/dev/stderr";
+      err = toexit = 1; exit;
+    }
+  }
+
+  # delect reflector from ARGV
+  delete ARGV[optind + 3];
+  
+  # get starting positions of rotors
+  split(init_setting, s, "");
+  for (r=1; r<=3; r++) {
+    pos[r] = s[r];
+  }
+}
+
+# for each line of input...
+{
+  # split it up into an array of chars
+  len = split(tolower($0), chars, "");
+
+  # loop over each input char
+  for (c=1; c<=len; c++) {
+    # replace non-alpha chars with "x" (may be expanded upon in the future)
+    if (chars[c] ~ /[^[:alpha:]]/) {
+      chars[c] = "x";
+    }
+
+    # determine which rotors to step
+    to_step[1] = 1; to_step[2] = 0; to_step[3] = 0;
+    for (r=1; r<=3; r++) {
+      # if there's a notch in the current position
+      if (notches[r,pos[r]]) {
+        # step both the current rotor and the next one
+        to_step[r] = 1;
+        to_step[r+1] = 1;
+      }
+    }
+    # actually step them
+    for (r=1; r<=3; r++) {
+      if (to_step[r]) {
+        pos[r] = letters[(letters[pos[r]] % l_len) + 1];
+      }
+    }
+
+    # send character through rotors
+    out = chars[c];
+    for (r=1; r<=3; r++) {
+      out = rotors_f[r,out];
+    }
+    # reflect
+    out = reflect[out];
+
+    # back through rotors
+    for (r=3; r>=1; r--) {
+      out = rotors_r[r,out];
+    }
+    
+
+    printf("%s", out);
+  }
+
+  print "";
+}
+
+END {
+  # exit prematurely
+  if (toexit) {
+    exit err;
+  }
 }
 
 
