@@ -5,6 +5,7 @@
 #
 #  Options:
 #   -n, --notch NUM   Create a rotor with NUM notches, with a maximum of 3
+#   -r, --reflect     Create a reflector, instead of a normal rotor
 #   -h, --help        Display this help and exit
 
 
@@ -12,6 +13,7 @@
 input=({a..z})  # array of input letters
 output=()       # array of output letters
 notches=1       # number of notches to generate
+reflector=0     # bool, whether or not to create a reflector
 
 # usage: is_conflicting NOTCH EXISTING
 # determines if NOTCH conflicts with any other notches in EXISTING. returns 0
@@ -37,12 +39,13 @@ Generates a new random rotor in FILE, or the standard ouput if not provided.
 
  Options:
   -n, --notch NUM   Create a rotor with NUM notches, with a maximum of 3
+  -r, --reflect     Create a reflector, instead of a normal rotor
   -h, --help        Display this help and exit
 EOF
 }
 
 # option string
-optstring=n:h
+optstring=n:rh
 
 # reformat the options into a more easily parsable format
 unset options
@@ -85,6 +88,7 @@ while [[ $1 = -?* ]]; do
       notches=$2
       shift
       ;;
+    -r|--reflect) reflector=1;;
     -h|--help) usage >&2; exit 0;;
     --endopts) shift; break;;
     *) printf 'invalid option: %s\n' "$1" >&2; exit 1;;
@@ -114,6 +118,16 @@ for file; do
     output[i]=${output[rand]}
     output[rand]=$tmp
   done
+
+  # if -r was used, just create a reflector
+  if ((reflector)); then
+    # print each pair of elements in the shuffled array per line
+    for ((i=0; i<size; i+=2)); do
+      printf '%s %s\n' "${output[i]}" "${output[i+1]}"
+    done > "$file"
+
+    continue
+  fi
 
   # determine random position of notches
   notch_pos=()
